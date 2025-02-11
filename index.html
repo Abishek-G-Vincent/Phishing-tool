@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Phishing Detection System</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f9;
+            margin: 0;
+            padding: 0;
+        }
+
+        .container {
+            width: 60%;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: #fff;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            border-radius: 8px;
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+        }
+
+        .input-group {
+            margin-bottom: 20px;
+        }
+
+        #urlInput {
+            width: 80%;
+            padding: 10px;
+            margin-right: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+
+        button {
+            padding: 10px 20px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background-color: #45a049;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            margin-top: 20px;
+        }
+
+        .result-header {
+            display: flex;
+            align-items: center;
+            font-size: 1.2em;
+        }
+
+        .result-icon {
+            margin-right: 10px;
+            font-size: 1.5em;
+        }
+
+        .phishing {
+            background-color: #f8d7da;
+            color: #721c24;
+            padding: 15px;
+            margin-top: 20px;
+            border: 1px solid #f5c6cb;
+            border-radius: 4px;
+        }
+
+        .legitimate {
+            background-color: #d4edda;
+            color: #155724;
+            padding: 15px;
+            margin-top: 20px;
+            border: 1px solid #c3e6cb;
+            border-radius: 4px;
+        }
+
+        .features-container {
+            margin-top: 20px;
+            background-color: #f8f9fa;
+            padding: 20px;
+            border-radius: 5px;
+        }
+
+        pre {
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            font-size: 1em;
+            color: #333;
+        }
+
+        .feature {
+            margin-bottom: 15px;
+        }
+
+        .feature h3 {
+            margin: 0;
+            font-size: 1.1em;
+            color: #333;
+        }
+
+        .feature p {
+            margin: 5px 0;
+            font-size: 1em;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Phishing Detection System</h1>
+        <p>Secure your browsing - Enter a URL to verify its authenticity</p>
+
+        <form id="urlForm">
+            <div class="input-group">
+                <input type="text" id="urlInput" placeholder="https://example.com" required>
+            </div>
+            <button type="submit">Analyze Security</button>
+        </form>
+
+        <div class="loading" id="loading">Analyzing...</div>
+        <div id="result"></div>
+    </div>
+
+    <script>
+        document.getElementById("urlForm").addEventListener("submit", function(event) {
+            event.preventDefault();
+
+            const url = document.getElementById("urlInput").value;
+            const loadingDiv = document.getElementById("loading");
+            const resultDiv = document.getElementById("result");
+
+            if (!url) {
+                alert("Please enter a URL.");
+                return;
+            }
+
+            // Show loading
+            loadingDiv.style.display = "block";
+            resultDiv.innerHTML = "";
+
+            // Send URL to Flask API
+            fetch('http://127.0.0.1:5000/predict', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ "url": url })
+            })
+            .then(response => response.json())
+            .then(data => {
+                loadingDiv.style.display = "none";
+
+                if (data.error) {
+                    resultDiv.className = "phishing";
+                    resultDiv.innerHTML = `
+                        <div class="result-header">
+                            <span class="result-icon">⚠</span>
+                            <h2>Error</h2>
+                        </div>
+                        <p>${data.error}</p>
+                    `;
+                } else {
+                    const isLegitimate = data.prediction.toLowerCase().includes('legitimate');
+                    resultDiv.className = isLegitimate ? 'legitimate' : 'phishing';
+
+                    resultDiv.innerHTML = `
+                        <div class="result-header">
+                            <span class="result-icon">${isLegitimate ? '🛡' : '🚫'}</span>
+                            <h2>Prediction: ${data.prediction}</h2>
+                        </div>
+                        <div class="features-container">
+                            <h3>Feature Explanations:</h3>
+                            ${generateFeatureExplanation(data.features)}
+                        </div>
+                    `;
+                }
+            })
+            .catch(error => {
+                loadingDiv.style.display = "none";
+                resultDiv.className = "phishing";
+                resultDiv.innerHTML = `
+                    <div class="result-header">
+                        <span class="result-icon">⚠</span>
+                        <h2>Error</h2>
+                    </div>
+                    <p>${error.message}</p>
+                `;
+            });
+        });
+
+        function generateFeatureExplanation(features) {
+            const featureDescriptions = {
+                "Abnormal_URL": "Phishing sites often use suspicious keywords like 'win', 'free', or 'claim' in their URLs to lure users into clicking.",
+                "having_IP_Address": "Phishing sites sometimes use raw IP addresses instead of a domain name to obscure their identity.",
+                "URL_Length": "Phishing sites may use excessively long URLs to hide malicious parts of the address.",
+                "Shortening_Service": "URL shortening services like bit.ly are commonly used to obscure the real destination and mislead users.",
+                "having_At_Symbol": "Phishing sites may include the '@' symbol to hide the actual domain from users.",
+                "double_slash_redirecting": "Phishing sites may have unusual URL structures like double slashes to mislead users.",
+                "Prefix_Suffix": "Fraudulent sites sometimes add dashes in domain names to mimic legitimate sites (e.g., 'pay-pal.com').",
+                "having_Sub_Domain": "Phishing sites often use subdomains to imitate legitimate websites (e.g., 'login.example.com').",
+                "SSLfinal_State": "Legitimate sites use HTTPS to encrypt data. Phishing sites often lack HTTPS.",
+                "Domain_registration_length": "Phishing sites are often newly registered and have short domain registration periods.",
+                "Favicon": "Legitimate sites generally have a favicon, whereas phishing sites may not.",
+                "port": "Phishing sites may use non-standard ports to obscure their operations.",
+                "HTTPS_token": "Phishing sites may not use HTTPS, making it easier to spot fraudulent sites.",
+                "Request_URL": "Phishing sites may load many external resources to mislead users.",
+                "URL_of_Anchor": "Phishing sites often have links to suspicious external websites.",
+                "Links_in_tags": "An unusually high number of links on a page can be a sign of a phishing attempt.",
+                "SFH": "Phishing sites may include forms designed to steal personal information.",
+                "Submitting_to_email": "Phishing sites may have forms that submit data to email addresses to gather personal information.",
+                "Redirect": "Phishing sites often use meta-refresh tags for automatic redirection.",
+                "on_mouseover": "Phishing sites may use JavaScript events like onmouseover to hide malicious content.",
+                "RightClick": "Phishing sites may disable right-click to prevent users from inspecting the site.",
+                "popUpWindow": "Phishing sites may use pop-up windows to display fake content or harvest user information.",
+                "Iframe": "Phishing sites may use hidden iframes to load malicious content.",
+                "Age_of_domain": "Younger domains are more likely to be phishing sites, while older domains are more trusted.",
+                "DNSRecord": "Legitimate sites usually have DNSSEC enabled, providing additional security."
+            };
+
+            let explanationHTML = '';
+            for (const feature in features) {
+                if (features.hasOwnProperty(feature)) {
+                    const description = featureDescriptions[feature] || "No description available for this feature.";
+                    explanationHTML += `
+                        <div class="feature">
+                            <h3>${feature}</h3>
+                            <p><strong>Value:</strong> ${features[feature]}</p>
+                            <p><strong>Explanation:</strong> ${description}</p>
+                        </div>
+                    `;
+                }
+            }
+            return explanationHTML;
+        }
+    </script>
+</body>
+</html>
